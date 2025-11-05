@@ -124,17 +124,20 @@ def read_webpage():
                         start_date_formatted = start_date.strftime(
                             "%Y-%m-%d %H:%M:%S+05"
                         )
+                        price_value = cols[3].text.strip().split(" ")[0]
+                        # Если цена не указана, устанавливаем ее в 0
+                        try:
+                            price = int(price_value)
+                        except ValueError:
+                            price = 0
+
                         events.append(
                             {
                                 "title": event_title,
                                 "start_date": start_date_formatted,
                                 "location_id": location["id"],
                                 "category_id": event_type["id"],
-                                "price": (
-                                    0
-                                    if cols[3].text.strip().split(" ")[0] == "свободн."
-                                    else cols[3].text.strip().split(" ")[0]
-                                ),
+                                "price": price,
                             }
                         )
                     else:

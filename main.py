@@ -34,9 +34,26 @@ async def shutdown():
 
 
 # Эндпоинт для получения событий по датам
-@app.get("/events/by-dates", response_model=List[EventResponse])
+@app.get(
+    "/events/by-dates",
+    response_model=List[EventResponse],
+    summary="Получить события по датам",
+    description="""
+    Этот эндпоинт возвращает список событий для указанных дат.
+    
+    **Особенности:**
+    - Поддерживает множественные даты
+    - Возвращает полную информацию о событиях
+    - Автоматически форматирует даты в ISO-формат
+    """,
+    response_description="Список событий с детальной информацией",
+    tags=["События"],
+)
 async def get_events_by_dates(
-    dates: List[date] = Query(..., description="Список дат в формате YYYY-MM-DD"),
+    dates: List[date] = Query(
+        ...,
+        description="Список дат в формате YYYY-MM-DD, например: ['2023-08-01', '2023-08-02']",
+    ),
 ):
     """
     Получить события по списку дат
