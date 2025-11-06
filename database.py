@@ -41,13 +41,35 @@ class Database:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    async def fetch_one(self, query: str, *args):
+    async def execute_function(self, function_name: str, *args):
+        """Выполняет функцию и возвращает скалярное значение"""
         async with self.pool.acquire() as connection:
-            return await connection.fetchrow(query, *args)
+            try:
+                placeholders = ", ".join([f"${i+1}" for i in range(len(args))])
+                query = f"SELECT {function_name}({placeholders})"
 
-    async def fetch_all(self, query: str, *args):
+                result = await connection.fetchval(query, *args)
+                return result
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    async def fetch(self, query: str, *args):
+        """Выполняет произвольный запрос и возвращает результат"""
         async with self.pool.acquire() as connection:
-            return await connection.fetch(query, *args)
+            try:
+                result = await connection.fetch(query, *args)
+                return result
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    async def fetchval(self, query: str, *args):
+        """Выполняет запрос и возвращает скалярное значение"""
+        async with self.pool.acquire() as connection:
+            try:
+                result = await connection.fetchval(query, *args)
+                return result
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 # Глобальный экземпляр базы данных
