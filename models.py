@@ -19,3 +19,15 @@ class EventResponse(BaseModel):
             datetime: lambda v: v.isoformat(),
             date: lambda v: v.isoformat(),
         }
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+        }

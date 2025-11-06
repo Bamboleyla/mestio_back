@@ -71,6 +71,15 @@ class Database:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+    async def fetch_one(self, query: str, *args):
+        """Выполняет запрос и возвращает одну запись"""
+        async with self.pool.acquire() as connection:
+            try:
+                result = await connection.fetchrow(query, *args)
+                return result
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 
 # Глобальный экземпляр базы данных
 db = Database()
