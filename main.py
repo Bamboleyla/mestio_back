@@ -10,6 +10,7 @@ from database import db
 from services.config import settings
 from routers import events
 from routers import images
+from routers import locations
 
 app = FastAPI(title="Mestio API", version="1.0.0")
 
@@ -44,3 +45,4 @@ async def shutdown():
 # Регистрируем роутеры
 app.include_router(events.router)
 app.include_router(images.router)
+app.include_router(locations.router)

@@ -41,7 +41,9 @@ class Database:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    async def execute_function(self, function_name: str, *args):
+    async def execute_function(
+        self, function_name: str, *args, validate_errors: bool = True
+    ):
         """Выполняет функцию и возвращает скалярное значение"""
         async with self.pool.acquire() as connection:
             try:
@@ -50,8 +52,35 @@ class Database:
 
                 result = await connection.fetchval(query, *args)
                 return result
+            except asyncpg.exceptions.PostgresError as e:
+                if validate_errors:
+                    # Определяем тип ошибки и возвращаем соответствующий код
+                    error_message = str(e).lower()
+                    if any(
+                        keyword in error_message
+                        for keyword in [
+                            "не может быть пустым",
+                            "не может быть раньше",
+                            "не существует",
+                            "не могут быть пустыми",
+                        ]
+                    ):
+                        raise HTTPException(status_code=400, detail=str(e))
+                    else:
+                        raise HTTPException(
+                            status_code=500, detail=f"Database error: {str(e)}"
+                        )
+                else:
+                    raise HTTPException(
+                        status_code=500, detail=f"Database error: {str(e)}"
+                    )
+            except HTTPException:
+                # Если уже сгенерирована HTTPException, перебрасываем её
+                raise
             except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+                raise HTTPException(
+                    status_code=500, detail=f"Internal server error: {str(e)}"
+                )
 
     async def fetch(self, query: str, *args):
         """Выполняет произвольный запрос и возвращает результат"""
