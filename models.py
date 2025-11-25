@@ -3,20 +3,6 @@ from datetime import datetime, date
 from typing import Optional, List
 
 
-class EventResponse(BaseModel):
-    title: str
-    location_name: str
-    category_name: str
-    schedules: List[dict]  # JSONB array of schedule objects with date and price
-
-    class Config:
-        from_attributes = True
-        json_encoders = {
-            date: lambda v: v.isoformat(),
-            datetime: lambda v: v.isoformat(),
-        }
-
-
 class EventCategoryRequest(BaseModel):
     category_name: str = Field(
         ...,
@@ -91,3 +77,19 @@ class LocationNameResponse(BaseModel):
     class Config:
         description = "Ответ с ID и названием локации"
         from_attributes = True
+
+
+class EventByDateResponse(BaseModel):
+    event_id: int
+    date: datetime
+    price: Optional[int] = None
+    title: str
+    category_name: str
+    location_name: str
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            date: lambda v: v.isoformat(),
+            datetime: lambda v: v.isoformat(),
+        }

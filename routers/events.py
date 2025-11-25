@@ -3,10 +3,10 @@ from datetime import date, datetime
 from typing import List
 from database import db
 from models import (
-    EventResponse,
     EventCategoryRequest,
     EventCategoryResponse,
     EventRequest,
+    EventByDateResponse,
 )
 from typing import List
 import asyncpg
@@ -20,14 +20,14 @@ router = APIRouter(prefix="/api/v1/events")
 # Эндпоинт для получения событий по дате
 @router.get(
     "/by-date",
-    response_model=List[EventResponse],
+    response_model=List[EventByDateResponse],
     summary="Получить события по дате",
     description="""
     Этот эндпоинт возвращает список событий для указанной даты.
 
     **Особенности:**
     - Возвращает полную информацию о событиях
-    - Включает расписание событий с датами и ценами
+    - Включает дату, цену, название события, категорию и локацию
     - Автоматически форматирует даты в ISO-формат
     """,
     response_description="Список событий с детальной информацией",
@@ -46,7 +46,24 @@ async def get_events_by_date(
         # Вызываем хранимую процедуру
         result = await db.execute_procedure("get_events_by_date", search_date)
 
-        # Преобразуем результат в список словарей
+        # Результат уже в формате JSON, нужно его распарсить
+        if result and len(result) > 0:
+            # Получаем JSON-результат из первого столбца
+            json_result = result[0][0] if result[0] and len(result[0]) > 0 else []
+        else:
+            json_result = []
+
+        # Если результат - строка, то парсим как JSON
+        if isinstance(json_result, str):
+            import json as json_module
+
+            json_result = json_module.loads(json_result)
+
+        # Если результат - None, возвращаем пустой список
+        if json_result is None:
+            json_result = []
+
+        # Конвертируем даты в ISO-формат, если нужно
         def convert_dates_to_iso(obj):
             """Рекурсивно преобразует объекты date и datetime в ISO строки"""
             if isinstance(obj, dict):
@@ -58,7 +75,7 @@ async def get_events_by_date(
             else:
                 return obj
 
-        formatted_result = [convert_dates_to_iso(dict(record)) for record in result]
+        formatted_result = convert_dates_to_iso(json_result)
 
         return formatted_result
 
