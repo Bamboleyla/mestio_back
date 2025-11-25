@@ -86,6 +86,7 @@ class EventByDateResponse(BaseModel):
     title: str
     category_name: str
     location_name: str
+    img_path: Optional[str] = None
 
     class Config:
         from_attributes = True
