@@ -3,9 +3,7 @@ from database import db
 from services.image_service import ImageService
 from services.config import settings
 import asyncpg
-
-# Создаем роутер для изображений
-router = APIRouter(prefix="/api/v1/events")
+from .models import ImageResponse
 
 
 # Зависимости
@@ -13,7 +11,9 @@ def get_image_service():
     return ImageService(settings.IMAGE_UPLOAD_DIR)
 
 
-# Эндпоинты для работы с изображениями событий с использованием хранимых процедур
+router = APIRouter()
+
+
 @router.post(
     "/{event_id}/images/{is_primary}",
     summary="Загрузить изображение для события",
@@ -81,65 +81,6 @@ async def upload_event_image(
             "height": height,
             "event_id": event_id,
         }
-
-    except asyncpg.exceptions.PostgresError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-@router.get(
-    "/{event_id}/images",
-    summary="Получить изображения события",
-    description="Возвращает список всех изображений для указанного события",
-    tags=["Изображения событий"],
-)
-async def get_event_images(event_id: int):
-    try:
-        # Вызываем хранимую процедуру для получения изображений
-        images = await db.execute_procedure("get_event_images", event_id)
-
-        return [
-            {
-                "id": img["id"],
-                "url": f"/static/images/{img['file_path']}",
-                "file_name": img["file_name"],
-                "file_size": img["file_size"],
-                "width": img["width"],
-                "height": img["height"],
-                "image_quality": img["image_quality"],
-                "sort_order": img["sort_order"],
-                "is_primary": img["is_primary"],
-                "created_at": (
-                    img["created_at"].isoformat() if img["created_at"] else None
-                ),
-            }
-            for img in images
-        ]
-
-    except asyncpg.exceptions.PostgresError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-@router.delete(
-    "/{event_id}/images/{image_id}",
-    summary="Удалить изображение события",
-    description="Удаляет указанное изображение события",
-    tags=["Изображения событий"],
-)
-async def delete_event_image(
-    event_id: int,
-    image_id: int,
-    image_service: ImageService = Depends(get_image_service),
-):
-    try:
-        # Вызываем хранимую процедуру для удаления
-        file_path = await db.execute_function("delete_event_image", image_id, event_id)
-
-        if file_path:
-            # Удаляем физический файл
-            image_service.delete_image(file_path)
-            return {"message": "Image deleted successfully"}
-        else:
-            raise HTTPException(status_code=404, detail="Image not found")
 
     except asyncpg.exceptions.PostgresError as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

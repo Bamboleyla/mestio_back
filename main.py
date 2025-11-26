@@ -8,9 +8,9 @@ load_dotenv()
 
 from database import db
 from services.config import settings
-from routers import events
-from routers import images
-from routers import locations
+from routers.events import router as events_router
+from routers.images import router as images_router
+from routers.locations import router as locations_router
 
 app = FastAPI(title="Mestio API", version="1.0.0")
 
@@ -43,6 +43,6 @@ async def shutdown():
 
 
 # Регистрируем роутеры
-app.include_router(events.router)
-app.include_router(images.router)
-app.include_router(locations.router)
+app.include_router(events_router)
+app.include_router(images_router)
+app.include_router(locations_router)

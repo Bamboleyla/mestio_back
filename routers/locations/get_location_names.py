@@ -1,14 +1,13 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
-from database import db
-from models import LocationNameResponse
 import asyncpg
+from database import db
+from .models import LocationNameResponse
 
-# Создаем роутер для локаций
-router = APIRouter(prefix="/api/v1/locations")
+
+router = APIRouter()
 
 
-# Эндпоинт для получения названий локаций
 @router.get(
     "/names",
     response_model=List[LocationNameResponse],
