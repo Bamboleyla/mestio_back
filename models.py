@@ -88,9 +88,92 @@ class EventByDateResponse(BaseModel):
     location_name: str
     img_path: Optional[str] = None
 
+    model_config = {"from_attributes": True}
+
+
+class EventDetailsResponse(BaseModel):
+    # Основные данные события
+    event_title: str = Field(..., max_length=100, description="Название события")
+    event_description: Optional[str] = Field(
+        None, max_length=1000, description="Описание события"
+    )
+    event_duration: Optional[int] = Field(
+        None, ge=0, description="Длительность события в минутах"
+    )
+    event_category_name: str = Field(
+        ..., max_length=50, description="Название категории события"
+    )
+
+    # Данные локации
+    location_name: str = Field(..., max_length=255, description="Название локации")
+    location_category_name: str = Field(
+        ..., max_length=50, description="Название категории локации"
+    )
+    location_city: Optional[str] = Field(
+        None, max_length=100, description="Город локации"
+    )
+    location_street: Optional[str] = Field(
+        None, max_length=255, description="Улица локации"
+    )
+    location_house_number: Optional[str] = Field(
+        None, max_length=20, description="Номер дома"
+    )
+    location_building_number: Optional[str] = Field(
+        None, max_length=20, description="Номер корпуса"
+    )
+    location_apartment_number: Optional[str] = Field(
+        None, max_length=20, description="Номер квартиры/офиса"
+    )
+
+    # Время работы локации
+    day_of_week: Optional[int] = Field(
+        None, ge=1, le=7, description="День недели (1-7)"
+    )
+    open_time: Optional[str] = Field(None, description="Время открытия")
+    close_time: Optional[str] = Field(None, description="Время закрытия")
+    break_start: Optional[str] = Field(None, description="Время начала перерыва")
+    break_end: Optional[str] = Field(None, description="Время окончания перерыва")
+
+    # Изображения события
+    file_path: Optional[str] = Field(
+        None, max_length=500, description="Путь к файлу изображения"
+    )
+
     class Config:
+        description = "Подробная информация о событии и связанной локации"
         from_attributes = True
-        json_encoders = {
-            date: lambda v: v.isoformat(),
-            datetime: lambda v: v.isoformat(),
-        }
+
+
+class EventLocationResponse(BaseModel):
+    name: str
+    category: str
+    city: Optional[str] = None
+    street: Optional[str] = None
+    house_number: Optional[str] = None
+    building_number: Optional[str] = None
+    apartment_number: Optional[str] = None
+
+    class Config:
+        description = "Информация о локации события"
+        from_attributes = True
+
+
+class EventOpeningHoursResponse(BaseModel):
+    open_time: Optional[str] = None
+    close_time: Optional[str] = None
+    break_start: Optional[str] = None
+    break_end: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class EventDetailsFullResponse(BaseModel):
+    title: str
+    description: Optional[str] = None
+    duration: Optional[int] = None
+    event_category: str
+    location: EventLocationResponse
+    opening_hours: EventOpeningHoursResponse
+    images: List[str]
+
+    model_config = {"from_attributes": True}
