@@ -1,17 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, HTTPException, status, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from pydantic import BaseModel, Field
 import re
 from datetime import datetime, timedelta
 from jose import jwt
-from jose.jwt import JWTError
 import os
 import secrets
 import asyncio
+from passlib.context import CryptContext
 from database import db
-from models import UserResponse
-from auth import get_password_hash
+
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+
+def get_password_hash(password):
+    # argon2 не имеет ограничения на длину пароля как bcrypt,
+    # но для совместимости с существующими ограничениями оставляем проверку
+    if len(password.encode("utf-8")) > 72:
+        password = password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
+    return pwd_context.hash(password)
+
 
 router = APIRouter(tags=["Аутентификация"])
 
@@ -33,7 +42,6 @@ class RegisterResponse(BaseModel):
     message: str
     user_id: int
     access_token: str
-    refresh_token: str
     token_type: str
     expires_in: int
 
@@ -79,7 +87,7 @@ def validate_password(password: str) -> bool:
     
     После успешной регистрации:
     - Создается учетная запись с ролью "user" (role_id = 1)
-    - Отправляется welcome email с ссылкой для подтверждения
+    - Отправляется welcome email ссылкой для подтверждения
     - Пользователь автоматически входит в систему (возвращаются токены)
     - Аккаунт временно неактивен (is_active = false) до подтверждения email
     
@@ -89,6 +97,99 @@ def validate_password(password: str) -> bool:
     """,
     response_description="Данные зарегистрированного пользователя и токены доступа",
     response_model=RegisterResponse,
+    responses={
+        201: {
+            "description": "Пользователь успешно зарегистрирован",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "successful_registration": {
+                            "summary": "Успешная регистрация",
+                            "value": {
+                                "success": True,
+                                "message": "Пользователь успешно зарегистрирован",
+                                "user_id": 123,
+                                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                                "token_type": "bearer",
+                                "expires_in": 900,
+                            },
+                        }
+                    }
+                }
+            },
+        },
+        400: {
+            "description": "Некорректный запрос (валидация данных)",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "email_empty": {
+                            "summary": "Пустой email",
+                            "value": {
+                                "error": "validation_error",
+                                "message": "Email не может быть пустым",
+                            },
+                        }
+                    }
+                }
+            },
+        },
+        409: {
+            "description": "Пользователь с таким email уже существует",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "email_exists": {
+                            "summary": "Email уже существует",
+                            "value": {
+                                "error": "email_already_exists",
+                                "message": "Пользователь с таким email уже существует",
+                            },
+                        }
+                    }
+                }
+            },
+        },
+        422: {
+            "description": "Ошибка валидации пароля или некорректный формат email",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "password_incorrect": {
+                            "summary": "Некорректный пароль",
+                            "value": {
+                                "error": "password_validation_error",
+                                "message": "Пароль должен содержать минимум 8 символов, включая заглавные и строчные буквы, цифры и специальные символы",
+                            },
+                        },
+                        "email_incorrect": {
+                            "summary": "Некорректный email",
+                            "value": {
+                                "error": "validation_error",
+                                "message": "Некорректный формат email",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Внутренняя ошибка сервера",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "internal_error": {
+                            "summary": "Внутренняя ошибка сервера",
+                            "value": {
+                                "error": "registration_failed",
+                                "message": "Ошибка при регистрации пользователя",
+                            },
+                        }
+                    }
+                }
+            },
+        },
+    },
 )
 @limiter.limit("20/hour")
 async def register(request: Request, data: RegisterRequest):
@@ -116,7 +217,7 @@ async def register(request: Request, data: RegisterRequest):
         email = validated_email.email
     except EmailNotValidError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "error": "validation_error",
                 "message": "Некорректный формат email",
@@ -126,7 +227,7 @@ async def register(request: Request, data: RegisterRequest):
     # Валидация пароля
     if not validate_password(data.password):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "error": "password_validation_error",
                 "message": "Пароль должен содержать минимум 8 символов, включая заглавные и строчные буквы, цифры и специальные символы",
@@ -192,15 +293,28 @@ async def register(request: Request, data: RegisterRequest):
         asyncio.create_task(EmailService.send_activation_email(user_id, email))
 
         # Возврат успешного ответа
-        return {
-            "success": True,
-            "message": "Регистрация прошла успешно",
-            "user_id": user_id,
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # в секундах
-        }
+        from fastapi.responses import JSONResponse
+
+        response = JSONResponse(
+            content={
+                "user_id": user_id,
+                "access_token": access_token,
+                "token_type": "bearer",
+                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # в секундах
+            }
+        )
+
+        # Установка refresh токена в HTTP Only cookie
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=True,  # если используется HTTPS
+            samesite="strict",
+            max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # в секундах
+        )
+
+        return response
 
     except Exception as e:
         # Обработка специфичных ошибок

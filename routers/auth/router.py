@@ -1,8 +1,18 @@
 from fastapi import APIRouter, Query, HTTPException, status, Request
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from database import db
-from models import UserResponse
+
+
+class CheckEmailResponse(BaseModel):
+    available: bool
+
+
+class ErrorResponse(BaseModel):
+    error: str
+    message: str
+
 
 router = APIRouter(prefix="/auth", tags=["Аутентификация"])
 
@@ -15,6 +25,33 @@ limiter = Limiter(key_func=get_remote_address)
     "/check-email",
     summary="Проверка доступности email",
     description="Проверяет, занят ли указанный email в системе",
+    response_model=CheckEmailResponse,
+    responses={
+        200: {
+            "description": "Email проверен успешно",
+            "model": CheckEmailResponse,
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "email_available": {
+                            "summary": "Email доступен",
+                            "value": {"available": True},
+                        },
+                        "email_not_available": {
+                            "summary": "Email недоступен",
+                            "value": {"available": False},
+                        },
+                    }
+                }
+            },
+        },
+        400: {"description": "Ошибка валидации", "model": ErrorResponse},
+        422: {
+            "description": "Некорректный формат email",
+            "model": ErrorResponse,
+        },
+        500: {"description": "Внутренняя ошибка сервера", "model": ErrorResponse},
+    },
 )
 @limiter.limit("20/hour")
 async def check_email(
@@ -22,7 +59,7 @@ async def check_email(
     email: str = Query(
         ..., description="Email для проверки (макс. 100 символов)", max_length=100
     ),
-):
+) -> CheckEmailResponse:
     """
     Проверяет уникальность email перед регистрацией
     """
@@ -47,7 +84,7 @@ async def check_email(
         email = validated_email.email
     except EmailNotValidError:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "error": "validation_error",
                 "message": "Некорректный формат email",
@@ -57,15 +94,8 @@ async def check_email(
     # Вызов хранимой процедуры для проверки доступности email
     try:
         is_available = await db.execute_function("check_email_availability", email)
+        return {"available": is_available}
 
-        if is_available:
-            return {"available": True, "email": email}
-        else:
-            return {
-                "available": False,
-                "email": email,
-                "message": "Этот email уже занят",
-            }
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
